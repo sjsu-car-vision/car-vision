@@ -3,3 +3,6 @@ Car Vision
 	Get car velocity using On-Board Diagnostic (OBD) tool
 	Compute limit of safe breaking distance
 	Warn driver using visuals and audio
+
+
+Contributors: Ken, Jason, Anson, YuYu
