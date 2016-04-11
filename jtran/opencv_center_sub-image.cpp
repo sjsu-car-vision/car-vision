@@ -17,16 +17,22 @@ using namespace cv;
 void CallBackFunc(int event, int x, int y, int flags, void* userdata);
 
 
+/*
+ * Press c to capture a template
+ */
+
 int main(int argc, const char * argv[])
 {
+	/* Init variables */
 	int error = 0;
+	Mat img_template;
 
 	/* Create windows */
 	namedWindow("VIDEOFEED", CV_WINDOW_AUTOSIZE);
 	namedWindow("TEMPLATE", CV_WINDOW_AUTOSIZE);
 
 	/* Configure mouse tracking in the window VIDEOFEED */
-	setMouseCallback("VIDEOFEED", CallBackFunc, NULL);
+	//setMouseCallback("VIDEOFEED", CallBackFunc, NULL);
 
 	/* Get video source */
 	int cam_id = 0;
@@ -36,6 +42,23 @@ int main(int argc, const char * argv[])
 		error = 1;
 		return error;
 	}
+
+
+	/* Get a box at the center of the video source */
+	const double width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
+	const double height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+
+	const double x_center = width/2;
+	const double y_center = height/2;
+
+	/* Setting box size to be 1/4 of the video source */
+	const double box_length = x_center/2;
+	const double box_height = y_center/2;
+
+	Rect center_box(x_center - box_length/2,
+					y_center - box_height/2,
+					box_length,
+					box_height);
 
 	/* Continuously analyze video source */
 	while(1) {
@@ -47,39 +70,24 @@ int main(int argc, const char * argv[])
 		}
 
 		/*
-		 *
-		 * Image processing implementation goes HERE
-		 *
+		 * --- Image processing implementation goes HERE ---
 		 */
-
-		/* Get template from center of frame
-		 *	- Get center coordinates
-		 *	- Create template at the center
-		 */
-		const double width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
-		const double height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
-
-		const double x_center = width/2;
-		const double y_center = height/2;
-
-		const double box_length = x_center/2;
-		const double box_height = y_center/2;
-
-		Rect center_box(x_center - box_length/2,
-						y_center - box_height/2,
-						box_length,
-						box_height);
-
-		/* Assign template as a sub-image of frame
-		 * Cropping center
-		 */
-		Mat img_template(frame, center_box);
 
 		/* Display both full image and sub-image */
 		imshow("VIDEOFEED", frame);
-		imshow("TEMPLATE", img_template);
 
-		if (waitKey(30) == 27) {
+		/* Check key event */
+		int ascii_dec = waitKey(30);
+		if (ascii_dec == 99) {
+			/* Get template from center of frame
+			 * - Assign template as a sub-image of frame
+			 * - Cropping center
+			 */
+			Mat temp(frame, center_box);
+			img_template = temp;
+			imshow("TEMPLATE", img_template);
+		}
+		else if (ascii_dec == 27) {
 			printf("Terminating...\n");
 			break;
 		}
