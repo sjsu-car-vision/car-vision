@@ -1,5 +1,7 @@
 /*
  * mcp2515_def.h
+ * Refer to http://ww1.microchip.com/downloads/en/DeviceDoc/21801G.pdf
+ * for more information
  *
  *  Created on: Apr 4, 2016
  *      Author: YuYu
@@ -172,10 +174,10 @@ typedef enum {
 
 
 /*
- * TxBnSIDL - Transmit buffer n Standard Identifer Low bits registers
+ * TxBnSIDL - Transmit buffer n Standard Identifier Low bits registers
  * bit [7:5] - SID - Standard Identifier bits [2:0]
  * bit 4	 - Reserved - 0
- * bit 3	 - EXIDE: Extended Identifier Enable bit ; 1 - Extended Identifer , 0 - Standard Identifier
+ * bit 3	 - EXIDE: Extended Identifier Enable bit ; 1 - Extended Identifier , 0 - Standard Identifier
  * bit 2	 - Reserved - 0
  * bit [1:0] - EID: Extended Identifier bits [17:16]
  */
@@ -238,7 +240,6 @@ typedef enum {
  * bit [7:0] - Transmit Buffer 1 Data Field Bytes m
  */
 typedef enum {
-	TXB1D0		= 0x46,
 	TXB1D0		= 0x46,
 	TXB1D1		= 0x47,
 	TXB1D2		= 0x48,
@@ -425,29 +426,176 @@ typedef enum {
 }RXB1Dm;
 
 
-//***********************TO DO'S ****************************//
+/*
+ * CANSTAT - CAN status register
+ * bit [7:5] - OPMODE - operation mode bits [2:0]
+ * 					3'b000 - Normal Operation mode
+ * 					3'b001 - Sleep mode
+ * 					3'b010 - Loopback mode
+ * 					3'b011 - Listen-only mode
+ * 					3'b100 - Configuration mode
+ * 	bit 4	 -	Reserved - 0
+ * 	bit [3:1]- 	ICOD - Interrupt Flag Code bits [2:0]
+ * 					3'b000 - No interrupt
+ * 					3'b001 - Error interrupt
+ * 					3'b010 - Wake-Up interrupt
+ * 					3'b011 - TXB0 interrupt
+ * 					3'b100 - TXB1 interrupt
+ * 					3'b101 - TXB2 interrupt
+ * 					3'b110 - RXB0 interrupt
+ * 					3'b111 - RXB1 interrupt
+ * 	bit 0	 - Reserved - 0
+ */
 #define CANSTAT		0x0E
+
+/*
+ * CANCTRL - CAN control register
+ * bit [7:5] - REQOP - Request Operation Mode bits [2:0] - On power-up bits are 3'b111
+ * 					3'b000 - Normal Operation mode
+ * 					3'b001 - Sleep mode
+ * 					3'b010 - Loopback mode
+ * 					3'b011 - Listen-only mode
+ * 					3'b100 - Configuration mode
+ * bit 4 	 -	ABAT - Abort all pending transactions
+ * 					1'b1 - Request abort all pending transmit buffers
+ * 					1'b0 - Terminate request to abort all transaction
+ * bit 3	 -	OSM - One Shot Mode bit
+ * 					1'b0 - Disabled, messages will reattempt transmission, if required
+ * 					1'b1 - Enabled, message will only attempt to transmit one time
+ * bit 2	 -	CLKEN - CLKOUT Pin Enable bit
+ * 					1'b0 -	CLKOUT Pin disabled - in Hi-z
+ * 					1'b1 - 	CLKOUT Pin enabled
+ * bit [1:0] -	CLKPRE - CLKOUT Pin Prescaler bits [1:0]
+ * 					2'b00 - Fclkout = System clock/1
+ * 					2'b01 - Fclkout = System clock/2
+ * 					2'b10 - Fclkout = System clock/4
+ * 					2'b11 - Fclkout = System clock/8
+ */
 #define CANCTRL		0x0F
 
-#define RXF3SIDH	0x10
 
 
-#define RXF4SIDL	0x15
-
-
-
-#define RXF5SIDL	0x19
-
+/*
+ * TEC - Transmit Error Counter
+ * bit [7:0] - Transmit Error Count bits
+ */
 #define TEC			0x1C
+
+/*
+ * REC - Receive Error Counter
+ * bit [7:0] - Receive Error Count bits
+ */
 #define REC         0x1D
 
-
-
+// =========== CNF3, CNF2, CNF1 registers control the bit timing for the CAN bus interface =========
+// =========== Can only be configured in Configuration Mode =========
+/*
+ * CNF3 - Configuration 1
+ * bit 7 - SOF - Start of Frame bit
+ * 		if CANCTRL.CLKEN == 1
+ * 			1'b0 - CLKOUT pin enabled for clockout function
+ * 			1'b1 - CLKOUT pin enabled for SOF signal
+ * 		else Bit is don't care
+ * 	bit 6 - WAKFIL - Wake-Up Filter bit
+ * 		1'b0 - Wake-Up filter disabled
+ * 		1'b1 - Wake-Up filter enabled
+ * 	bit [5:3] - Reserved - 0
+ * 	bit [2:0] - PHSEG2 - PS2 length bits [2:0]
+ * 		(PHSEG2 + 1) x Tq
+ * 		Minimum valid setting for PS2 is 2 Tq
+ */
 #define CNF3		0x28
+
+/*
+ * CNF2 - Configuration 1
+ * bit 7 - BTLMODE - PS2 bit Time Length bit
+ * 		1'b0 - Length of PS2 is the greater of PS1 and IPT (2 Tq)
+ * 		1'b1 - Length of PS2 determined by [PHSEG22:PHSEG20] bits in CNF3
+ * bit 6 - SAM - Sample Point Configuration bit
+ * 		1'b0 - Bus line is sampled once at the sample point
+ * 		1'b1 - Bus line is sampled 3 times at the sample point
+ * bit [5:3] - PHSEG1 - PS1 Length bits [2:0] - (PHSEG1 + 1) x Tq
+ * bit [2:0] - PRSEG - Propagation Segment Length bits [2:0] - (PRSEG + 1) x Tq
+ *
+ *
+ */
 #define CNF2		0x29
+
+/*
+ *CNF1 - Configuration 1
+ * bit [7:6] - SJW - Synchronization Jump Width Length bits [1:0]
+ * 					2'b11 - Length = 4 x Tq
+ * 					2'b10 - Length = 3 x Tq
+ * 					2'b01 - Length = 2 x Tq
+ * 					2'b00 - Length = 1 x Tq
+ * bit [5:0] - BRP - Baud Rate Prescaler bits [5:0]
+ * 					Tq = 2 x (BRP + 1)/Fosc
+ */
 #define CNF1		0x2A
+
+/*
+ * CANINTE - Interrupt Enable - if bit x = 0 , Disabled
+ * bit 7	- MERRE - Message Error Interrupt Enable bit
+ * 				1'b1 - Interrupt on error during message reception and transmission
+ * bit 6	- WAKIE - Wake-up Interrupt Enable bit
+ * 				1'b1 - Interrupt on CAN bus activity
+ * bit 5 	- ERRIE - Error Interrupt Enable bit (multiple sources in EFLG register)
+ * 				1'b1 - Interrupt on EFLG error condition change
+ * bit 4	- TX2IE - Transmit Buffer 2 Empty Interrupt Enable bit
+ * 				1'b1 - Interrupt on TXB2 becoming empty
+ * bit 3	- TX1IE - Transmit Buffer 1 Empty Interrupt Enable bit
+ * 				1'b1 - Interrupt on TXB1 becoming empty
+ * bit 2	- TX0IE - Transmit Buffer 0 Empty Interrupt Enable bit
+ * 				1'b1 - Interrupt on TXB0 becoming empty
+ * bit 1	- RX1IE - Receive Buffer 1 Full Interrupt Enable bit
+ * 				1'b1 - Interrupt when message received in RXB1
+ * bit 0	- RX0IE - Receive Buffer 0 Full Interrupt Enable bit
+ * 				1'b1 - Interrupt when message received in RXB1
+ */
 #define CANINTE		0x2B
+
+/*
+ * CANINTF - Interrupt Flag - if bit x = 0 , No interrupt pending ,
+ * 				if bit x = 1, Interrupt pending, must be cleared by MCU to reset interrupt condition
+ * bit 7	- MERRF - Message Error Interrupt Flag bit
+ * bit 6	- WAKIF - Wake-up Interrupt Flag bit
+ * bit 5 	- ERRIF - Error Interrupt Flag bit (multiple sources in EFLG register)
+ * bit 4	- TX2IF - Transmit Buffer 2 Empty Interrupt Flag bit
+ * bit 3	- TX1IF - Transmit Buffer 1 Empty Interrupt Flag bit
+ * bit 2	- TX0IF - Transmit Buffer 0 Empty Interrupt Flag bit
+ * bit 1	- RX1IF - Receive Buffer 1 Full Interrupt Flag bit
+ * bit 0	- RX0IF - Receive Buffer 0 Full Interrupt Flag bit
+ */
 #define CANINTF		0x2C
+
+
+/*
+ * EFLG - Error Flag
+ * bit 7	- RX1OVR - 	Receive Buffer 1 overflow flag bit
+ * 						- set when a valid message is received for RXB1 and CANINTF.RX1F = 1
+ * 						- must be reset by MCU
+ * bit 6	- RX0OVR -  Receive Buffer 0 overflow flag bit
+ * 						- set when a valid message is received for RXB0 and CANINTF.RX0F = 1
+ * 						- must be reset by MCU
+ * bit 5 	- TXB0 -	Bus-Off Error Flag bit
+ * 						- Bit set when TEC reaches 255
+ * 						- Reset after a successful bus recovery sequence
+ * bit 4	- TEXP -	Transmit Error-Passive Flag bit
+ * 						- Set when REC is equal or greater than 128
+ * 						- Reset when TEC is less than 128
+ * bit 3	- RXEP -	Receive Error-Passive Flag bit
+ * 						- Set when REC is equal to or greater than 128
+ * 						- Reset when REC is less than 128
+ * bit 2	- TXWAR - 	Transmit Error Warning Flag bit
+ * 						- Set when TEC is equal to or greater than 96
+ * 						- Reset when TEC is less than 96
+ * bit 1	- RXWAR	-	Receive Error Warning Flag bit
+ * 						- Set when REC is equal to or greater than 96
+ * 						- Reset when REC is less than 96
+ * bit 0	- EWARN -	Error Warning Flag bit
+ * 						- Set when TEC or REC is equal to or greater than 96 (TXWAR or TXWAR = 1)
+ * 						- Reset when both REC and TEC are less than 96
+ */
 #define EFLG		0x2D
 
 
@@ -456,133 +604,143 @@ typedef enum {
 // CONTROL REGISTERS
 
 // BFPCTRL : 0x0C
-#define B1BFS		5
-#define B0BFS		4
-#define B1BFE		3
-#define B0BFE		2
-#define B1BFM		1
-#define B0BFM		0
+typedef enum {
+	B1BFS		= 5,
+	B0BFS		= 4,
+	B1BFE		= 3,
+	B0BFE		= 2,
+	B1BFM		= 1,
+	B0BFM		= 0
+}BFPCTRL_bits;
 
 // TXRTSCTRL : 0x0D
-#define B2RTS		5
-#define B1RTS		4
-#define B0RTS		3
-#define B2RTSM		2
-#define B1RTSM		1
-#define B0RTSM		0
+typedef enum {
+	B2RTS		= 5,
+	B1RTS		= 4,
+	B0RTS		= 3,
+	B2RTSM		= 2,
+	B1RTSM		= 1,
+	B0RTSM		= 0
+}TXRTSCTRL_bits;
 
 // CANSTAT : 0xE
-#define OPMOD2		7
-#define OPMOD1		6
-#define OPMOD0		5
-#define ICOD2		3
-#define ICOD1		2
-#define ICOD0		1
+typedef enum {
+	OPMOD		= 5,
+	ICOD		= 1,
+}CANSTAT_bits;
 
 // CANCTRL : 0xF
-#define REQOP2		7
-#define REQOP1		6
-#define REQOP0		5
-#define ABAT		4
-#define CLKEN		2
-#define CLKPRE1		1
-#define CLKPRE0		0
+typedef enum {
+	REQOP		= 5,
+	ABAT		= 4,
+	CLKEN		= 2,
+	CLKPRE		= 0
+}CANCTRL_bits;
+
 
 // CNF3 : 0x28
-#define WAKFIL		6
-#define PHSEG22		2
-#define PHSEG21		1
-#define PHSEG20		0
+typedef enum {
+	SOF			= 7,
+	WAKFIL		= 6,
+	PHSEG2		= 0
+}CNF3_bits;
 
 // CNF2 : 0x29
-#define BTLMODE		7
-#define SAM			6
-#define PHSEG12		5
-#define PHSEG11		4
-#define PHSEG10		3
-#define PHSEG2		2
-#define PHSEG1		1
-#define PHSEG0		0
+typedef enum {
+	BTLMODE		= 7,
+	SAM			= 6,
+	PHSEG1		= 3,
+	PHSEG		= 0
+}CNF2_bits;
 
 // CNF1 : 0x2A
-#define SJW1		7
-#define SJW0		6
-#define BRP5		5
-#define BRP4		4
-#define BRP3		3
-#define BRP2		2
-#define BRP1		1
-#define BRP0		0
+typedef enum {
+	SJW		= 6,
+	BRP0	= 0
+}CNF1_bits;
 
 // CANINTE : 0x2B
-#define MERRE		7
-#define WAKIE		6
-#define ERRIE		5
-#define TX2IE		4
-#define TX1IE		3
-#define TX0IE		2
-#define RX1IE		1
-#define RX0IE		0
+typedef enum {
+	MERRE		= 7,
+	WAKIE		= 6,
+	ERRIE		= 5,
+	TX2IE		= 4,
+	TX1IE		= 3,
+	TX0IE		= 2,
+	RX1IE		= 1,
+	RX0IE		= 0
+}CANINTE_bits;
 
 // CANINTF : 0x2C
-#define MERRF		7
-#define WAKIF		6
-#define ERRIF		5
-#define TX2IF		4
-#define TX1IF		3
-#define TX0IF		2
-#define RX1IF		1
-#define RX0IF		0
+typedef enum {
+	MERRF		= 7,
+	WAKIF		= 6,
+	ERRIF		= 5,
+	TX2IF		= 4,
+	TX1IF		= 3,
+	TX0IF		= 2,
+	RX1IF		= 1,
+	RX0IF		= 0
+}CANINTF_bits;
 
 // EFLG : 0x2D
-#define RX1OVR		7
-#define RX0OVR		6
-#define TXB0		5
-#define TXEP		4
-#define RXEP		3
-#define TXWAR		2
-#define RXWAR		1
-#define EWARN		0
+typedef enum {
+	RX1OVR		= 7,
+	RX0OVR		= 6,
+	TXB0		= 5,
+	TXEP		= 4,
+	RXEP		= 3,
+	TXWAR		= 2,
+	RXWAR		= 1,
+	EWARN		= 0
+}EFLG_bits;
 
-// TXBnCTRL (n = 0, 1, 2)  , 0x30 , 0x40 , 0x50
-#define ABTF		6
-#define MLOA		5
-#define TXERR		4
-#define TXREQ		3
-#define TXP1		1
-#define TXP0		0
+
+// TXBnCTRL (n = 0, 1, 2) :  0x30 , 0x40 , 0x50
+typedef enum {
+	ABTF		= 6,
+	MLOA		= 5,
+	TXERR		= 4,
+	TXREQ		= 3,
+	TXP			= 0
+}TXBnCTRL_bits;
 
 // RXB0CTRL : 0x60
-#define RXM1		6
-#define RXM0		5
-#define RXRTR		3
-#define BUKT		2
-#define BUKT1		1
-#define FILHIT0		0
+typedef enum {
+	RXM0			= 5,
+	RXRTR0		= 3,
+	BUKT		= 2,
+	BUKT1		= 1,
+	FILHIT0		= 0
+}RXB0CTRL_bits;
 
-/** \brief	Bitdefinition von TXBnSIDL (n = 0, 1) */
-#define	EXIDE		3
+// TXBnSIDL (n = 0, 1) : 0x32, 0x42, 0x52
+typedef enum {
+	txSID			= 5,
+	EXIDE		= 3,
+	txEID			= 0
+}TXBnSIDL_bits;
 
-/**
- * \brief	Bitdefinition von RXB1CTRL
- * \see		RXM1, RXM0, RXRTR und FILHIT0 sind schon fuer RXB0CTRL definiert
- */
-#define FILHIT2		2
-#define FILHIT1		1
 
-/** \brief	Bitdefinition von RXBnSIDL (n = 0, 1) */
-#define	SRR			4
-#define	IDE			3
+// RXB1CTRL : 0x70
+typedef enum {
+	RXM1		= 5,
+	RXRTR1		= 3,
+	FILHIT1		= 0
+}RXB1CTRL_bits;
 
-/**
- * \brief	Bitdefinition von RXBnDLC (n = 0, 1)
- * \see		TXBnDLC   (gleiche Bits)
- */
-#define	RTR			6
-#define	DLC3		3
-#define	DLC2		2
-#define	DLC1		1
-#define DLC0		0
+// RXBnSIDL (n = 0, 1) : 0x62, 0x72
+typedef enum {
+	rxSID		= 5,
+	SRR			= 4,
+	IDE			= 3,
+	EID			= 0
+}RXBnSIDL_bits;
 
+//RXBnDLC (n = 0, 1) : 0x65, 0x75
+typedef enum {
+	RTR			= 6,
+	DLC			= 0
+}RXBnDLC_bits;
 
 #endif /* MCP2515_DEF_H_ */
