@@ -27,19 +27,25 @@ typedef struct
 
 }canMessage;
 
+enum int_list {
+    /* Interrupt Input Pin */
+    INT_PORT = 1, INT_PIN = 20,
+};
+
 class mcp2515  {
 
     public:
         mcp2515(uint8_t speed); // constructor inits
+        bool init(uint8_t speed); // actual init of mcp2515
 
         void wr_reg(uint8_t addr, uint8_t data);
         uint8_t rd_reg(uint8_t addr);
         void bit_modify(uint8_t addr, uint8_t mask, uint8_t data);
-        uint8_t rd_status(uint8_t type);
-        uint8_t mcp2515_check_message(void);
-        uint8_t mcp2515_check_free_buffer(void);
-        uint8_t mcp2515_get_message(canMessage *message);
-        uint8_t mcp2515_send_message(canMessage *message);
+        uint8_t rd_status(uint8_t opcode);
+        bool check_message();   // see if interrupt occurred
+        bool check_free_buffer();   // check all 3 TX buffers if they are full
+        uint8_t get_message(canMessage *message);
+        uint8_t send_message(canMessage *message);
 
 
     private:
