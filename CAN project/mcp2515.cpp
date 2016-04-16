@@ -105,10 +105,130 @@ bool mcp2515::check_message(){
 
 bool mcp2515::check_free_buffer(){
     uint8_t status;
-    status = rd_status(SPI_READ_STATUS); // check TX buffer
-    if(status == 0x54)
-        return false;
-
+    status = rd_status(SPI_READ_STATUS); // check TX buffer (TXBnCNTRL.TXREQ),
+    if(status == 0x54)                      // 0 1 0 1   0 1 0 0
+        return false;                       //   ^   ^     ^
+                                            //  TX2  TX1   TX0
     return true;
 
+}
+
+bool mcp2515::get_message(canMessage *message) {
+    uint8_t status;
+    uint8_t addr;
+    uint16_t SID;
+    uint8_t dataLength;
+
+    status = rd_status(SPI_RX_STATUS); // check which buffer received message is in
+
+    if (status & (1 << 6)) { // Message in RXB0
+        addr = SPI_READ_RX;
+    }
+    else if (status & (1 << 7)) { // Message in RXB1
+        addr = (SPI_READ_RX | 0x4);
+    }
+    else {
+        // no message
+        return false;
+    }
+
+    // starting address should be either 0x61 or 0x71
+
+    cs.set_state(GPIO_LOW);
+    spi->exchange_byte(addr);
+
+    // getting Standard Identifier bits [10:0]        bits 15   --------------------->    0
+    SID =  spi->exchange_byte(0) << 3;                   // 0 0 0 0 0 1 1 1 1 1 1 1 1 0 0 0
+    SID |= spi->exchange_byte(0) >> 5;                   // 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1
+                                                         // 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1
+
+    message->id = SID;
+
+    // address pointer auto increments to next register after each read
+    spi->exchange_byte(0);  // skipping EIDH reg
+    spi->exchange_byte(0);  // skipping EIDL reg
+
+    // reading DLC (data length code) register, only need last 4 bits
+    dataLength = (spi->exchange_byte(0) & 0xf);
+    message->header.length = dataLength;
+
+    // check if it is a standard data frame or remote frame
+    message->header.rtr = (status & (1 << 3)) ? 1: 0;
+
+    // store x amount of data bytes according to DLC
+    for(int i =0; i < dataLength; i++) {
+        message->data[i] = spi->exchange_byte(0);
+    }
+    // end transaction
+    cs.set_state(GPIO_HIGH);
+
+    // clear receive interrupt flag to reset interrupt condition (need to be cleared to get new message)
+    if (status & (1 << 6)) // check which receive buffer has a message
+    {
+        bit_modify(CANINTF, 1 << RX0IF, 0); // clear receive buffer 0 flag bit
+    }
+    else
+    {
+        bit_modify(CANINTF, 1 << RX1IF, 0); // clear receive buffer 1 flag bit
+    }
+
+    return true;
+}
+
+bool mcp2515::send_message(canMessage *message) {
+    uint8_t status;
+    uint8_t addr;
+    uint8_t dataLength;
+
+    status =rd_status(SPI_READ_STATUS);
+
+    if (!(status & (1 << 2))) // TXB0CNTRL.TXREQ, check TX0 buffer if it is empty
+    {
+        addr =  0x0; // addr = 0x40, address points to TXB0SIDH (0x31)
+    }
+    else if (!(status & (1 << 4))) // check TX1 buffer if it is empty
+    {
+        addr =  0x2; // addr = 0x42, address points to TXB1SIDH (0x41)
+    }
+    else if (!(status & (1 << 6))) // check TX2 buffer if it is empty
+    {
+        addr =  0x4; // addr = 0x44, address points to TXB2SIDH (0x51)
+    }
+    else
+    {
+        // all buffer full/busy
+        return false;
+    }
+
+    // start transaction , loading data into registers before transmission
+    cs.set_state(GPIO_LOW);
+    spi->exchange_byte((SPI_WRITE_TX | addr)); // address depends on top
+
+    spi->exchange_byte(message->id >> 3);  // SID bits [10:3]
+    spi->exchange_byte((message->id & 0x7) << 5);  // SID bits [2:0] into bits[7:5] of TXBnSIDL
+
+    spi->exchange_byte(0); // skip EID regs
+    spi->exchange_byte(0);
+
+    dataLength = (message->header.length & 0xf); // DLC to be sent
+
+    if(message->header.rtr)
+        spi->exchange_byte((1 << RTR | dataLength)); // RTR frame has length, but no header
+    else {
+        spi->exchange_byte(dataLength);
+
+        for(int i=0; i< dataLength; i++) {
+            spi->exchange_byte(message->data[i]); // send x length amount of data
+        }
+    }
+    // end loading register
+    cs.set_state(GPIO_HIGH);
+
+    // start transmission of data from one of the 3 TX buffers
+    cs.set_state(GPIO_LOW);
+    addr = (addr == 0) ? 1: addr; // TX2 = bit 2 , TX1 = bit 1 , TX0 = bit 0
+    spi->exchange_byte((SPI_RTS | addr));  // request to send, initiate message transmission
+    cs.set_state(GPIO_HIGH);
+
+    return true;
 }

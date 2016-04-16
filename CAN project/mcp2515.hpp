@@ -32,6 +32,11 @@ enum int_list {
     INT_PORT = 1, INT_PIN = 20,
 };
 
+
+/*
+ * CAN controller interface
+ *
+ */
 class mcp2515  {
 
     public:
@@ -44,8 +49,8 @@ class mcp2515  {
         uint8_t rd_status(uint8_t opcode);
         bool check_message();   // see if interrupt occurred
         bool check_free_buffer();   // check all 3 TX buffers if they are full
-        uint8_t get_message(canMessage *message);
-        uint8_t send_message(canMessage *message);
+        bool get_message(canMessage *message);
+        bool send_message(canMessage *message);
 
 
     private:
