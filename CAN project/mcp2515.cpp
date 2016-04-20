@@ -33,9 +33,21 @@ bool mcp2515::init(uint8_t speed) {
     cs.set_state(GPIO_LOW);
     spi->exchange_byte(SPI_WRITE);
     spi->exchange_byte(CNF3);
-    spi->exchange_byte(0x2 << PHSEG2);  // PS2 Length bits, (PHSEG2 + 1) x Tq , minimum valid setting is 2Tq
-    spi->exchange_byte(((1 << BTLMODE) | (0x2 << PHSEG1)) ); // set to PS2 bit time length, CNF2
-    spi->exchange_byte(speed); // set baud rate, not quite sure how timing is done..., but Tq = 2(speed+1)/16MHz, CNF1
+
+    // =================== FOR ALL SPEED =====================
+    // setting bit timing to 16Tq
+    // PS2 Length bits, (PHSEG2 + 1) x Tq , minimum valid setting is 2Tq
+    // set to PS2 bit time length, and set PS1, (PHSEG1 + 1) x Tq , and PRSEG
+    // setting all config to have 1Tq propagation segment length
+    // sync bit by default is 1Tq
+    // SJW set to 1Tq
+    // Baud rate prescaler, Tq = 2(speed+1)/16MHz
+    // Sample Point will be at 62.5% of bit timing
+
+    spi->exchange_byte(0x5 << PHSEG2); // setting PS2 to 6Tq
+    spi->exchange_byte(((1 << BTLMODE) | (0x7 << PHSEG1) | (0x0 << PRSEG))); // setting PS1 to 8Tq, 1Tq PRSEG
+    spi->exchange_byte(((0 << SJW) |(speed << BRP0))); // set Synchronization Jump Width to 1Tq, set baud rate prescaler
+
     spi->exchange_byte((1 << RX1IE | 1 << RX0IE)); // CANINTE , Receive buffer 0/1 full interrupt enable
     cs.set_state(GPIO_HIGH);
 

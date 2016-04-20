@@ -14,7 +14,6 @@
 #include "own_driver/my_gpio.hpp"
 
 
-
 typedef struct
 {
         uint16_t id;
