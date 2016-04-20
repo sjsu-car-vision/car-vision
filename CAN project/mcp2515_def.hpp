@@ -651,7 +651,7 @@ typedef enum {
     BTLMODE     = 7,
     SAM         = 6,
     PHSEG1      = 3,
-    PHSEG       = 0
+    PRSEG       = 0
 }CNF2_bits;
 
 // CNF1 : 0x2A
