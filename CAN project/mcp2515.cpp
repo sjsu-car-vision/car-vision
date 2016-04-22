@@ -16,10 +16,15 @@ static Gpio intr(INT_PORT, INT_PIN, GPIO_INPUT, GPIO_HIGH); // set Px.x as inter
 
 mcp2515::mcp2515(uint8_t speed) : spi(My_spi1::get_instance())
 {
+    bool success;
+    puts("Initializing SPI driver...");
     spi->init(500);
-    init(speed);
-
-
+    puts("Initializing CAN bus controller...");
+    success = init(speed);
+    if (success)
+        puts("CAN bus controller init successful");
+    else
+        puts("CAN bus controller init failed");
 }
 
 bool mcp2515::init(uint8_t speed) {

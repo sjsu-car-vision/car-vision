@@ -9,14 +9,14 @@
 
 
 CANbus::CANbus(uint8_t speed): controller(speed) {
-
+    puts("Initialized CAN bus module...");
 }
 
 bool CANbus::CAN_sendMessage(uint8_t pid) {
 
     canMessage message;
 
-    // building message... from sparkfun example...
+    // building message...  example...
     message.id = PID_REQUEST;
     message.header.rtr = 0; // Data Frame
     message.header.length = 8; // # of bytes to be transferred
@@ -67,7 +67,7 @@ bool CANbus::CAN_getMessage(uint8_t *messageBuffer) {
 uint8_t CANbus::getSpeed(uint8_t pid) {
     canMessage message;
     uint8_t carSpeed = 0;
-    // building message... from sparkfun example...
+    // building message...  example...
     message.id = PID_REQUEST;
     message.header.rtr = 0; // Data Frame
     message.header.length = 8; // # of bytes to be transferred
@@ -89,10 +89,10 @@ uint8_t CANbus::getSpeed(uint8_t pid) {
             {                                       // and store it in passed in struct
                 if(message.data[2] == VEHICLE_SPEED) {
                     carSpeed = message.data[3];
-                }
-            }
-        }
-    }
+                }else puts("PID not Vehicle Speed");
+            } else puts("Failed to get message");
+        }else puts("No message triggering interrupt");
+    }else puts("Failed to send message");
     return carSpeed;
 }
 
