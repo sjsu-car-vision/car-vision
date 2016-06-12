@@ -9,20 +9,24 @@
 #include <iostream>
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
+#include "opencv2/videoio.hpp"
 #include "opencv2/objdetect.hpp"
+#include "trafficLight.h"
 
 using namespace std;
 using namespace cv;
 
-void detectAndDisplay(Mat frame);
-
-string cascade = "/Users/jianganson72/Desktop/data/cascade.xml";
+string cascade = "/Users/jianganson72/Desktop/trafficLightTraining/data/cascade.xml";
 CascadeClassifier trafficLightCascade;
 
 int main(int argc, const char * argv[])
 {
     // insert code here...
+    trafficLight t;
+    
     Mat image;
+    
+    VideoCapture cap("/Users/jianganson72/Desktop/My Movie.mp4");
     
     if(!trafficLightCascade.load(cascade))
     {
@@ -30,36 +34,45 @@ int main(int argc, const char * argv[])
         return -1;
     }
     
-    image = imread("/Users/jianganson72/Desktop/test1.jpg", CV_LOAD_IMAGE_UNCHANGED);
+    
+    /* For videos */
+    //cap.open( -1 );
+    if ( ! cap.isOpened() ) { printf("--(!)Error opening video capture\n"); return -1; }
+
+    while ( cap.read(image) )
+    {
+        if( image.empty() )
+        {
+            printf(" --(!) No captured frame -- Break!");
+            break;
+        }
+        
+        //-- 3. Apply the classifier to the frame
+        t.colorDetect(image);
+        t.detectAndDisplay(image, trafficLightCascade);
+        
+        int c = waitKey(10);
+        if( (char)c == 27 ) { break; } // escape
+    }
+    
+    /* For images */
+    /*
+     
+    image = imread("/Users/jianganson72/Desktop/20141115_154224.jpg", CV_LOAD_IMAGE_UNCHANGED);
+    image = imread("/Users/jianganson72/Desktop/Test/test1.jpg", CV_LOAD_IMAGE_UNCHANGED);
 
     if(image.empty()){
         cout << "cannot read image" << endl;
         return -1;
     }
     
-    detectAndDisplay(image);
+    t.detectAndDisplay(image);
+     
+    int c = waitKey(10);
+    if( (char)c == 27 ) { break; } // escape
+
+    */
     
     return 0;
-}
-
-void detectAndDisplay(Mat image)
-{
-    std::vector<Rect> trafficlights;
-    Mat frame_gray;
-    cvtColor(image, frame_gray, COLOR_BGR2GRAY);
-    equalizeHist(frame_gray, frame_gray);
     
-    trafficLightCascade.detectMultiScale(frame_gray, trafficlights, 1.1, 3, 0|CASCADE_SCALE_IMAGE, Size(50, 50));
-    
-    for(size_t i = 0; i < trafficlights.size(); i++)
-    {
-        rectangle(image, cvPoint(trafficlights[i].x - trafficlights[i].width/2, trafficlights[i].y - trafficlights[i].height/2),
-                         cvPoint(trafficlights[i].x + trafficlights[i].width/2, trafficlights[i].y + trafficlights[i].height/2/2), Scalar(0, 100, 255));
-    }
-    
-    namedWindow("Display Window", WINDOW_AUTOSIZE);
-    imshow("Display Window", image);
-    
-    waitKey(0);
-
 }
