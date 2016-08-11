@@ -78,14 +78,15 @@ bool mcp2515::init(char speed) {
     wr_reg(RXB1CTRL, 0x0 << RXM1);// same
 
     // setting up each filter
-    wr_Filt_reg(0x0);
-    wr_Filt_reg(0x4);
-    wr_Filt_reg(0x8);
-    wr_Filt_reg(0x10);
-    wr_Filt_reg(0x14);
-    wr_Filt_reg(0x18);
+    wr_Filt_reg(RXF0SIDH);
+    wr_Filt_reg(RXF1SIDH);
+    wr_Filt_reg(RXF2SIDH);
+    wr_Filt_reg(RXF3SIDH);
+    wr_Filt_reg(RXF4SIDH);
+    wr_Filt_reg(RXF5SIDH);
 
     // setting up each masks
+    wr_Mask_reg(RXM0SIDH);
 #else
     wr_reg(RXB0CTRL, 0x3 << RXM0); // turn off mask/filter, receive any message
     wr_reg(RXB1CTRL, 0x3 << RXM1); // same, for now, to check if it's evne possible to communicate via CAN
@@ -154,7 +155,7 @@ void mcp2515::wr_Mask_reg(char addr) {
     spi->exchange_byte(0); // RXM0EID0, 0x23
 
     spi->exchange_byte(MASK >> 3); // RXM1SIDH , 0x24
-    spi->exchange_byte(MASK << 5 | ~3 << 0); // RXM1SIDL
+    spi->exchange_byte((MASK << 5) & ~(3 << 0)); // RXM1SIDL
     spi->exchange_byte(0); // RXM1EID8
     spi->exchange_byte(0); // RXM1EID0, 0x27
     cs.set_state(GPIO_HIGH);
