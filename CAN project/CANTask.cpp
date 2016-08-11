@@ -18,8 +18,10 @@ CANTask::CANTask(uint8_t priority): scheduler_task("CAN_task", 512 * 4, priority
 
 bool CANTask::run(void *p)
 {
-    float speed = CAN_object.getSpeed(VEHICLE_SPEED);
-    printf("%f\n", speed);
+    char speed = CAN_object.getSpeed(VEHICLE_SPEED);
+    printf("%d\n", speed);
+    //char message[8] = {0};
+    //CAN_object.CAN_getMessage(message);
 
     vTaskDelay(1000);
     return true;

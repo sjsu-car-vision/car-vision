@@ -13,12 +13,14 @@ using namespace std;
 
 static Gpio cs(FLASH_PORT, FLASH_PIN, GPIO_OUTPUT, GPIO_HIGH);
 static Gpio intr(INT_PORT, INT_PIN, GPIO_INPUT, GPIO_HIGH); // set Px.x as interrupt input pin
+static Gpio rst(RST_PORT, RST_PIN, GPIO_OUTPUT, GPIO_HIGH);
 
-mcp2515::mcp2515(uint8_t speed) : spi(My_spi1::get_instance())
+mcp2515::mcp2515(char speed) : spi(My_spi1::get_instance())
 {
     bool success;
     puts("Initializing SPI driver...");
     spi->init(500);
+    delay_us(100);
     puts("Initializing CAN bus controller...");
     success = init(speed);
     if (success)
@@ -27,13 +29,21 @@ mcp2515::mcp2515(uint8_t speed) : spi(My_spi1::get_instance())
         puts("CAN bus controller init failed");
 }
 
-bool mcp2515::init(uint8_t speed) {
-
+bool mcp2515::init(char speed) {
+    rst.set_state(GPIO_LOW); // manual resetting
+    delay_us(100);
+    rst.set_state(GPIO_HIGH); // after reset... disable reset, and not keep floating :(
 
     cs.set_state(GPIO_LOW);
     spi->exchange_byte(SPI_RESET); // reset to go into configuration mode
     cs.set_state(GPIO_HIGH);
 
+    puts("In INIT");
+
+    printf("CANSTAT    %x\n",rd_reg(CANSTAT)>>5);
+    printf("SPEED     %x\n", speed);
+
+    delay_us(100);
     // continuous write will increment address pointer
     cs.set_state(GPIO_LOW);
     spi->exchange_byte(SPI_WRITE);
@@ -62,16 +72,45 @@ bool mcp2515::init(uint8_t speed) {
     wr_reg(BFPCTRL,0); // according to schematic, NC, so disable RXnBF (Hi-z)
     wr_reg(TXRTSCTRL,0); // according to schematic, NC, so disable TXnRTS (Hi-z)
 
+
+#if FILTER
+    wr_reg(RXB0CTRL, 0x0 << RXM0); // receive all valid messages standard or extended that meets filter
+    wr_reg(RXB1CTRL, 0x0 << RXM1);// same
+
+    // setting up each filter
+    wr_Filt_reg(0x0);
+    wr_Filt_reg(0x4);
+    wr_Filt_reg(0x8);
+    wr_Filt_reg(0x10);
+    wr_Filt_reg(0x14);
+    wr_Filt_reg(0x18);
+
+    // setting up each masks
+#else
     wr_reg(RXB0CTRL, 0x3 << RXM0); // turn off mask/filter, receive any message
-    wr_reg(RXB1CTRL, 0x3 << RXM1); // same
+    wr_reg(RXB1CTRL, 0x3 << RXM1); // same, for now, to check if it's evne possible to communicate via CAN
 
-    wr_reg(CANCTRL, 0); // set to normal operation
+#endif
 
+
+
+
+    wr_reg(CANCTRL, 0 << REQOP); // set to normal operation
+    //wr_reg(CANCTRL, 2 << REQOP); // set to loopback operation
+    //wr_reg(CANCTRL, 3 << REQOP); // set to listen-only operation
+
+    printf("CNF3    %x\n", rd_reg(CNF3));
+    printf("CNF2    %x\n", rd_reg(CNF2));
+    printf("CNF1    %x\n", rd_reg(CNF1));
+
+
+    printf("CANCTRL    %x\n", rd_reg(CANCTRL)>>5);
+    printf("CANINTE    %x\n", rd_reg(CANINTE));
     return true;
 }
 
 
-void mcp2515::wr_reg(uint8_t addr, uint8_t data) {
+void mcp2515::wr_reg(char addr, char data) {
     cs.set_state(GPIO_LOW);
     spi->exchange_byte(SPI_WRITE);
     spi->exchange_byte(addr);
@@ -80,9 +119,9 @@ void mcp2515::wr_reg(uint8_t addr, uint8_t data) {
 
 }
 
-uint8_t mcp2515::rd_reg(uint8_t addr) {
+char mcp2515::rd_reg(char addr) {
 
-    uint8_t data;
+    char data;
 
     cs.set_state(GPIO_LOW);
     spi->exchange_byte(SPI_READ);
@@ -93,7 +132,35 @@ uint8_t mcp2515::rd_reg(uint8_t addr) {
     return data;
 }
 
-void mcp2515::bit_modify(uint8_t addr, uint8_t mask, uint8_t data)
+void mcp2515::wr_Filt_reg(char addr) {
+    cs.set_state(GPIO_LOW);
+    spi->exchange_byte(SPI_WRITE);
+    spi->exchange_byte(addr);   // starting from 0x0, 0x4, 0x8, 0x10, 0x14, 0x18
+    spi->exchange_byte(PID_REPLY >> 3); //put ID filter into SID[10:3] of RXFnSIDH
+    spi->exchange_byte((PID_REPLY << 5 | 0 << 3) & ~(3 << 0)); //put ID filter into SID[2:0], which is in bit[7:5] of RXFnSIDL
+    spi->exchange_byte(0); //RXFnEID8 -- 0x2, 0x6, 0xA, 0x12, 0x16, 0x1A, set to 0 b/c not used
+    spi->exchange_byte(0); //RXFnEID0 -- 0x3, 0x7, 0xB, 0x13, 0x17, 0x1B, set to 0 b/c not used
+    cs.set_state(GPIO_HIGH);
+}
+
+void mcp2515::wr_Mask_reg(char addr) {
+    cs.set_state(GPIO_LOW);
+    spi->exchange_byte(SPI_WRITE);
+
+    spi->exchange_byte(addr); // starting from 0x20
+    spi->exchange_byte(MASK >> 3); // RXM0SIDH
+    spi->exchange_byte((MASK << 5) & ~(3 << 0)); // RXM0SIDL
+    spi->exchange_byte(0); // RXM0EID8
+    spi->exchange_byte(0); // RXM0EID0, 0x23
+
+    spi->exchange_byte(MASK >> 3); // RXM1SIDH , 0x24
+    spi->exchange_byte(MASK << 5 | ~3 << 0); // RXM1SIDL
+    spi->exchange_byte(0); // RXM1EID8
+    spi->exchange_byte(0); // RXM1EID0, 0x27
+    cs.set_state(GPIO_HIGH);
+}
+
+void mcp2515::bit_modify(char addr, char mask, char data)
 {
     cs.set_state(GPIO_LOW);
     spi->exchange_byte(SPI_BIT_MODIFY);
@@ -104,24 +171,40 @@ void mcp2515::bit_modify(uint8_t addr, uint8_t mask, uint8_t data)
 
 }
 
-uint8_t mcp2515::rd_status(uint8_t opcode) {
-    uint8_t data;
+char mcp2515::rd_status(char opcode) {
+    char data;
 
     cs.set_state(GPIO_LOW);
-    spi->exchange_byte(SPI_READ_STATUS);
+
+    spi->exchange_byte(opcode);
     data = spi->exchange_byte(0x0);
+
     cs.set_state(GPIO_HIGH);
 
     return data;
 }
 
 bool mcp2515::check_message(){
-    return (!intr.get_state()); // INTn pin
+    bool state = intr.get_state();
+    char status;
+    status = rd_status(SPI_RX_STATUS); // check which buffer received message is in
+    puts("In check_message()");
+    printf("Status:    %x\n", status);
+    printf("CANSTAT:    %x\n", rd_reg(CANSTAT));
+    printf("CANINTF:   %x\n", rd_reg(CANINTF));
+    printf("EFLG:   %x\n", rd_reg(EFLG));
+
+    printf("RXB0CTRL:    %x\n", rd_reg(RXB0CTRL));
+    printf("RXB1CTRL:    %x\n", rd_reg(RXB1CTRL));
+
+
+    printf("interrupt state: %d\n ", !state);
+    return (!state); // INTn pin
 
 }
 
 bool mcp2515::check_free_buffer(){
-    uint8_t status;
+    char status;
     status = rd_status(SPI_READ_STATUS); // check TX buffer (TXBnCNTRL.TXREQ),
     if(status == 0x54)                      // 0 1 0 1   0 1 0 0
         return false;                       //   ^   ^     ^
@@ -131,21 +214,33 @@ bool mcp2515::check_free_buffer(){
 }
 
 bool mcp2515::get_message(canMessage *message) {
-    uint8_t status;
-    uint8_t addr;
+    char status;
+    char addr;
     uint16_t SID;
-    uint8_t dataLength;
+    int dataLength;
 
     status = rd_status(SPI_RX_STATUS); // check which buffer received message is in
+    puts("In get_message");
+    printf("Status:    %x\n", status);
+    printf("CANSTAT:    %x\n", rd_reg(CANSTAT));
+    printf("CANINTF:   %x\n", rd_reg(CANINTF));
+    printf("EFLG:   %x\n", rd_reg(EFLG));
+
+    printf("RXB0CTRL:    %x\n", rd_reg(RXB0CTRL));
+    printf("RXB1CTRL:    %x\n", rd_reg(RXB1CTRL));
+
 
     if (status & (1 << 6)) { // Message in RXB0
         addr = SPI_READ_RX;
+        puts("Message in RXB0");
     }
     else if (status & (1 << 7)) { // Message in RXB1
         addr = (SPI_READ_RX | 0x4);
+        puts("Message in RXB1");
     }
     else {
         // no message
+        puts("No message");
         return false;
     }
 
@@ -188,15 +283,25 @@ bool mcp2515::get_message(canMessage *message) {
     {
         bit_modify(CANINTF, 1 << RX1IF, 0); // clear receive buffer 1 flag bit
     }
-
+    read_msg();
     return true;
 }
 
 bool mcp2515::send_message(canMessage *message) {
-    uint8_t status;
-    uint8_t addr;
-    uint8_t dataLength;
+    char status;
+    char addr;
+    char dataLength;
 
+    puts("In send_message");
+    printf("CANSTAT:    %x\n", rd_reg(CANSTAT));
+    printf("CANINTF:   %x\n", rd_reg(CANINTF));
+    printf("EFLG:   %x\n", rd_reg(EFLG));
+
+    printf("TXB0CTRL:    %x\n", rd_reg(TXB0CTRL));
+    printf("TXB1CTRL:    %x\n", rd_reg(TXB1CTRL));
+    printf("TXB2CTRL:    %x\n", rd_reg(TXB2CTRL));
+
+    //bit_modify(CANINTF, 1 << MERRF, 0);
     status =rd_status(SPI_READ_STATUS);
 
     if (!(status & (1 << 2))) // TXB0CNTRL.TXREQ, check TX0 buffer if it is empty
@@ -241,11 +346,60 @@ bool mcp2515::send_message(canMessage *message) {
     // end loading register
     cs.set_state(GPIO_HIGH);
 
+    delay_us(10);
+
     // start transmission of data from one of the 3 TX buffers
     cs.set_state(GPIO_LOW);
     addr = (addr == 0) ? 1: addr; // TX2 = bit 2 , TX1 = bit 1 , TX0 = bit 0
     spi->exchange_byte((SPI_RTS | addr));  // request to send, initiate message transmission
     cs.set_state(GPIO_HIGH);
 
+    printf("TXB0CTRL:    %x\n", rd_reg(TXB0CTRL));
+    printf("TXB1CTRL:    %x\n", rd_reg(TXB1CTRL));
+    printf("TXB2CTRL:    %x\n", rd_reg(TXB2CTRL));
+
+
+    //read_msg();
+
     return true;
 }
+
+void mcp2515::read_msg() {
+    uint16_t SID;
+    int dataLength;
+    int message[8] = {0};
+
+    SID = rd_reg(RXB0SIDH) << 3;
+    SID |= rd_reg(RXB0SIDL) >> 5;
+
+    dataLength = rd_reg(RXB0DLC) & 0xf;
+
+    message[0] = rd_reg(RXB0D0);
+    message[1] = rd_reg(RXB0D1);
+    message[2] = rd_reg(RXB0D2);
+    message[3] = rd_reg(RXB0D3);
+    message[4] = rd_reg(RXB0D4);
+    message[5] = rd_reg(RXB0D5);
+    message[6] = rd_reg(RXB0D6);
+    message[7] = rd_reg(RXB0D7);
+
+    printf("SID:    %x\n", SID);
+    printf("dataLength:    %x\n", dataLength);
+    for(int i =0; i < dataLength; i++)
+        printf("message %i:    %x\n",i, message[i]);
+
+}
+
+/*
+bool mcp2515::set_CSn_inactive(int pin)
+{
+    LPC_GPIO1->FIOSET = (1 << pin); // initially CSn inactive
+    return true;
+}
+
+bool mcp2515::set_CSn_active(int pin)
+{
+    LPC_GPIO1->FIOCLR = (1 << pin);
+    return true;
+}
+*/

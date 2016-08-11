@@ -8,15 +8,15 @@
 #include "CAN.hpp"
 
 
-CANbus::CANbus(uint8_t speed): controller(speed) {
+CANbus::CANbus(char speed): controller(speed) {
     puts("Initialized CAN bus module...");
 }
 
-bool CANbus::CAN_sendMessage(uint8_t pid) {
+bool CANbus::CAN_sendMessage(char pid) {
 
     canMessage message;
 
-    // building message...  example...
+    // building message... from sparkfun example...
     message.id = PID_REQUEST;
     message.header.rtr = 0; // Data Frame
     message.header.length = 8; // # of bytes to be transferred
@@ -39,10 +39,11 @@ bool CANbus::CAN_sendMessage(uint8_t pid) {
     return true;
 }
 
-bool CANbus::CAN_getMessage(uint8_t *messageBuffer) {
+bool CANbus::CAN_getMessage(char *messageBuffer) {
     canMessage message;
 
     if(controller.check_message()) { // check the interrupt pin value
+        puts("INTERRUPTEDD");
         if(controller.get_message(&message)) { // get CAN message via CAN controller SPI interface
                                                 // and store it in passed in array
             messageBuffer[0] = message.data[0];
@@ -53,21 +54,28 @@ bool CANbus::CAN_getMessage(uint8_t *messageBuffer) {
             messageBuffer[5] = message.data[5];
             messageBuffer[6] = message.data[6];
             messageBuffer[7] = message.data[7];
+            /*
+            for(int i =0; i < 8; i++) {
+                printf("message %i:            %x\n", i, messageBuffer[i]);
+            }
+            */
         }
         else {
+            puts("Failed to get message");
             return false;
         }
     }
     else {
+        puts("No message triggering interrupt");
         return false;
     }
     return true;
 }
 
-uint8_t CANbus::getSpeed(uint8_t pid) {
+char CANbus::getSpeed(char pid) {
     canMessage message;
-    uint8_t carSpeed = 0;
-    // building message...  example...
+    char carSpeed = 0;
+    // building message... from sparkfun example...
     message.id = PID_REQUEST;
     message.header.rtr = 0; // Data Frame
     message.header.length = 8; // # of bytes to be transferred
@@ -85,6 +93,7 @@ uint8_t CANbus::getSpeed(uint8_t pid) {
     {
         if (controller.check_message()) // check the interrupt pin value
         {
+            puts("INTERRUPTEDD");
             if (controller.get_message(&message)) // get CAN message via CAN controller SPI interface
             {                                       // and store it in passed in struct
                 if(message.data[2] == VEHICLE_SPEED) {
